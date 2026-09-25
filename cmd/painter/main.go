@@ -17,6 +17,7 @@ func main() {
 	styleName := flag.String("style", "oil", "Painting preset: oil, impressionist, or rough")
 	seed := flag.Uint64("seed", 1, "Deterministic random seed used for stroke placement")
 	listStyles := flag.Bool("list-styles", false, "Print available style names and exit")
+	workers := flag.Int("workers", 8, "Number of workers to use")
 	flag.Parse()
 
 	if *listStyles {
@@ -34,6 +35,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: unknown style %q; available styles: %s\n", *styleName, strings.Join(painter.PresetNames(), ", "))
 		os.Exit(2)
 	}
+	config.Workers = *workers
+
 	source, err := imageutil.LoadImage(*inputPath)
 	if err != nil {
 		fatal(err)

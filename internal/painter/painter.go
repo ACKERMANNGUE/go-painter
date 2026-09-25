@@ -34,35 +34,37 @@ func (p *Painter) Paint(source image.Image) (*image.RGBA, error) {
 	}
 
 	canvas := render.NewCanvas(bounds.Dx(), bounds.Dy(), model.ColorF{R: 1, G: 1, B: 1, A: 1})
+	baseBrushSize := p.Config.BrushSizes[0]
+	radius := max(1, baseBrushSize/4)
+	sigma := math.Max(0.8, float64(radius)*0.75)
+	reference := imageutil.GaussianBlur(source, radius, sigma)
+	gray := gradient.ToGrayscaleParallel(reference, p.Config.Workers)
+	field := gradient.Sobel(gray)
 
+	strokes := make([]model.BrushStroke, 0)
 	for _, brushSize := range p.Config.BrushSizes {
-		radius := max(1, brushSize/4)
-		sigma := math.Max(0.8, float64(radius)*0.75)
-		reference := imageutil.GaussianBlur(source, radius, sigma)
-		gray := gradient.ToGrayscale(reference)
-		field := gradient.Sobel(gray)
+		brushStrokes := GenerateStrokes(reference, canvas, field, brushSize, p.Config, p.rng)
+		strokes = append(strokes, brushStrokes...)
+	}
+	shuffleStrokes(strokes, p.rng)
 
-		strokes := GenerateStrokes(reference, canvas, field, brushSize, p.Config, p.rng)
-		shuffleStrokes(strokes, p.rng)
-
-		for _, stroke := range strokes {
-			if p.Config.UseCurvedStrokes {
-				points := DrawStroke(
-					stroke.Position,
-					field,
-					stroke.Length,
-					math.Max(1, stroke.Width*0.35),
-					p.Config.CurveSmoothing,
-				)
-				render.DrawCurvedStroke(canvas, model.CurvedStroke{
-					Points:  points,
-					Width:   stroke.Width,
-					Color:   stroke.Color,
-					Opacity: stroke.Opacity,
-				})
-			} else {
-				render.DrawStroke(canvas, stroke)
-			}
+	for _, stroke := range strokes {
+		if p.Config.UseCurvedStrokes {
+			points := DrawStroke(
+				stroke.Position,
+				field,
+				stroke.Length,
+				math.Max(1, stroke.Width*0.35),
+				p.Config.CurveSmoothing,
+			)
+			render.DrawCurvedStroke(canvas, model.CurvedStroke{
+				Points:  points,
+				Width:   stroke.Width,
+				Color:   stroke.Color,
+				Opacity: stroke.Opacity,
+			})
+		} else {
+			render.DrawStroke(canvas, stroke)
 		}
 	}
 

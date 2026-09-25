@@ -18,4 +18,5 @@ type PainterConfig struct {
 	Randomness       float64
 	UseCurvedStrokes bool
 	CurveSmoothing   float64
+	Workers          int
 }
