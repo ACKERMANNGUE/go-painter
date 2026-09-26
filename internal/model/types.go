@@ -46,3 +46,8 @@ type GradientField struct {
 	Height int
 	Data   []Gradient
 }
+
+type RangeRow struct {
+	Start int
+	End   int
+}
