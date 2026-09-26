@@ -26,16 +26,24 @@ func BlendPixel(canvas *image.RGBA, x int, y int, c model.ColorF, opacity float6
 		return
 	}
 	offset := canvas.PixOffset(x, y)
+	destinationAlpha := canvas.Pix[offset+3]
+	if destinationAlpha == 0 {
+		return
+	}
+	alpha := float64(destinationAlpha) / MAX_RGB
 	destination := model.ColorF{
-		R: float64(canvas.Pix[offset]) / MAX_RGB,
-		G: float64(canvas.Pix[offset+1]) / MAX_RGB,
-		B: float64(canvas.Pix[offset+2]) / MAX_RGB,
+		R: float64(canvas.Pix[offset]) / MAX_RGB / alpha,
+		G: float64(canvas.Pix[offset+1]) / MAX_RGB / alpha,
+		B: float64(canvas.Pix[offset+2]) / MAX_RGB / alpha,
 		A: 1,
 	}
 	result := Blend(destination, c, opacity)
 	pixel := imageutil.ToNRGBA(result)
-	canvas.Pix[offset] = pixel.R
-	canvas.Pix[offset+1] = pixel.G
-	canvas.Pix[offset+2] = pixel.B
-	canvas.Pix[offset+3] = pixel.A
+	canvas.Pix[offset] = premultiply(pixel.R, destinationAlpha)
+	canvas.Pix[offset+1] = premultiply(pixel.G, destinationAlpha)
+	canvas.Pix[offset+2] = premultiply(pixel.B, destinationAlpha)
+}
+
+func premultiply(channel, alpha uint8) uint8 {
+	return uint8((uint16(channel)*uint16(alpha) + 127) / 255)
 }
