@@ -21,16 +21,21 @@ func Blend(destination, source model.ColorF, alpha float64) model.ColorF {
 }
 
 func BlendPixel(canvas *image.RGBA, x int, y int, c model.ColorF, opacity float64) {
-	if !image.Pt(x, y).In(canvas.Bounds()) {
+	bounds := canvas.Bounds()
+	if x < bounds.Min.X || x >= bounds.Max.X || y < bounds.Min.Y || y >= bounds.Max.Y {
 		return
 	}
-	pixel := canvas.RGBAAt(x, y)
+	offset := canvas.PixOffset(x, y)
 	destination := model.ColorF{
-		R: float64(pixel.R) / MAX_RGB,
-		G: float64(pixel.G) / MAX_RGB,
-		B: float64(pixel.B) / MAX_RGB,
+		R: float64(canvas.Pix[offset]) / MAX_RGB,
+		G: float64(canvas.Pix[offset+1]) / MAX_RGB,
+		B: float64(canvas.Pix[offset+2]) / MAX_RGB,
 		A: 1,
 	}
 	result := Blend(destination, c, opacity)
-	canvas.Set(x, y, imageutil.ToNRGBA(result))
+	pixel := imageutil.ToNRGBA(result)
+	canvas.Pix[offset] = pixel.R
+	canvas.Pix[offset+1] = pixel.G
+	canvas.Pix[offset+2] = pixel.B
+	canvas.Pix[offset+3] = pixel.A
 }
