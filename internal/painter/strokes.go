@@ -32,9 +32,10 @@ func GenerateStrokes(
 	if batch == nil {
 		batch = make([]model.BrushStroke, 0, (width/step+1)*(height/step+1)/2)
 	}
+	errorMap := BuildErrorMap(source, canvas)
 	for y := step / 2; y < height; y += step {
 		for x := step / 2; x < width; x += step {
-			if RegionError(source, canvas, x, y, radius) < config.ErrorThreshold {
+			if RegionErrorCached(errorMap, x, y, radius) < config.ErrorThreshold {
 				continue
 			}
 

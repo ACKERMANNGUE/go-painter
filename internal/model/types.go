@@ -64,3 +64,9 @@ type PaintBuffer struct {
 	StrokeBatch []BrushStroke
 	CurvePoints []Vec2
 }
+
+type ErrorMap struct {
+	Width  int
+	Height int
+	Values []float64
+}
