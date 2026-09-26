@@ -27,46 +27,82 @@ func New(config PainterConfig, seed uint64) (*Painter, error) {
 	}, nil
 }
 
-func (p *Painter) Paint(source image.Image) (*image.RGBA, error) {
+func buildReferenceImage(source image.Image, p *Painter, buffers *model.PaintBuffer) image.Image {
 	bounds := source.Bounds()
 	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
-		return nil, fmt.Errorf("source image is empty")
+		fmt.Errorf("source image is empty")
+		return image.Black
 	}
 
 	canvas := render.NewCanvas(bounds.Dx(), bounds.Dy(), model.ColorF{R: 1, G: 1, B: 1, A: 1})
 	baseBrushSize := p.Config.BrushSizes[0]
-	radius := max(1, baseBrushSize/4)
-	sigma := math.Max(0.8, float64(radius)*0.75)
+	blurScale := p.Config.BlurStrength
+	if blurScale <= 0 {
+		blurScale = 1
+	}
+	radius := max(1, int(math.Round(float64(baseBrushSize)/4.0*blurScale)))
+	sigma := math.Max(0.8, float64(radius)*0.75*blurScale)
 	reference := imageutil.GaussianBlur(source, radius, sigma, p.Config.Workers)
+
+	buffers.Reference = reference
+	buffers.Canvas = canvas
+
+	return reference
+}
+
+func buildGradientField(reference image.Image, p *Painter, buffers *model.PaintBuffer) /*model.GradientField*/ {
 	gray := gradient.ToGrayscaleParallel(reference, p.Config.Workers)
 	field := gradient.SobelParallel(gray, p.Config.Workers)
 
-	strokes := make([]model.BrushStroke, 0)
-	for _, brushSize := range p.Config.BrushSizes {
-		brushStrokes := GenerateStrokes(reference, canvas, field, brushSize, p.Config, p.rng)
-		strokes = append(strokes, brushStrokes...)
-	}
-	shuffleStrokes(strokes, p.rng)
+	buffers.Gray = gray
+	buffers.Field = field
 
-	for _, stroke := range strokes {
-		if p.Config.UseCurvedStrokes {
-			points := DrawStroke(
+	// return field
+}
+
+func generateStrokeBatch(source image.Image, buffers *model.PaintBuffer, brushSize int, config PainterConfig, rng *rand.Rand) {
+	buffers.StrokeBatch = GenerateStrokes(buffers.Reference, buffers.Canvas, buffers.Field, brushSize, config, rng, buffers.StrokeBatch)
+}
+
+func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig) {
+	for _, stroke := range buffers.StrokeBatch {
+		if config.UseCurvedStrokes {
+			buffers.CurvePoints = DrawStroke(
 				stroke.Position,
-				field,
+				buffers.Field,
 				stroke.Length,
 				math.Max(1, stroke.Width*0.35),
-				p.Config.CurveSmoothing,
+				config.CurveSmoothing,
+				buffers.CurvePoints,
 			)
-			render.DrawCurvedStroke(canvas, model.CurvedStroke{
-				Points:  points,
+
+			render.DrawCurvedStroke(buffers.Canvas, model.CurvedStroke{
+				Points:  buffers.CurvePoints,
 				Width:   stroke.Width,
 				Color:   stroke.Color,
 				Opacity: stroke.Opacity,
 			})
 		} else {
-			render.DrawStroke(canvas, stroke)
+			render.DrawStroke(buffers.Canvas, stroke)
 		}
 	}
+}
 
-	return canvas, nil
+func clearStrokeBatch(buffers *model.PaintBuffer) {
+	buffers.StrokeBatch = buffers.StrokeBatch[:0]
+	buffers.CurvePoints = buffers.CurvePoints[:0]
+}
+
+func (p *Painter) Paint(source image.Image, buffers *model.PaintBuffer) (*image.RGBA, error) {
+	reference := buildReferenceImage(source, p, buffers)
+	buildGradientField(reference, p, buffers)
+
+	for _, brushSize := range p.Config.BrushSizes {
+		generateStrokeBatch(source, buffers, brushSize, p.Config, p.rng)
+		shuffleStrokes(buffers.StrokeBatch, p.rng)
+		renderStrokeBatch(buffers, p.Config)
+		clearStrokeBatch(buffers)
+	}
+
+	return buffers.Canvas, nil
 }

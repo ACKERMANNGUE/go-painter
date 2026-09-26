@@ -1,5 +1,9 @@
 package model
 
+import (
+	"image"
+)
+
 type Vec2 struct {
 	X float64
 	Y float64
@@ -50,4 +54,13 @@ type GradientField struct {
 type RangeRow struct {
 	Start int
 	End   int
+}
+
+type PaintBuffer struct {
+	Canvas      *image.RGBA
+	Reference   image.Image
+	Gray        GrayImage
+	Field       GradientField
+	StrokeBatch []BrushStroke
+	CurvePoints []Vec2
 }

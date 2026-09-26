@@ -1,39 +1,46 @@
 package painter
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"runtime"
 	"testing"
+
+	"github.com/ACKERMANNGUE/go-painter/internal/model"
 )
 
-func BenchmarkPaintSequential(b *testing.B) {
-	source := benchmarkImage(128, 128)
-	config, exists := GetPreset("oil")
-
-	if exists != true {
-		b.Fatal("Selected preset [oil] doesn't exist....")
+func BenchmarkPaint(b *testing.B) {
+	source := benchmarkImage(1280, 1280)
+	var buffers model.PaintBuffer
+	baseConfig, ok := GetPreset("oil")
+	if !ok {
+		b.Fatal("oil preset is missing")
 	}
 
-	b.ReportAllocs()
-	b.ResetTimer()
+	workerCounts := uniqueWorkerCounts([]int{1, 2, 4, 8, 16, 32, 64, runtime.GOMAXPROCS(0)})
+	for _, workers := range workerCounts {
+		b.Run(benchmarkName(workers), func(b *testing.B) {
+			config := baseConfig
+			config.Workers = workers
+			b.ReportAllocs()
+			b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		engine, errorNew := New(config, 1)
-		if errorNew != nil {
-			b.Fatal(errorNew)
-		}
-
-		_, errorPaint := engine.Paint(source)
-
-		if errorPaint != nil {
-			b.Fatal(errorPaint)
-		}
+			for i := 0; i < b.N; i++ {
+				engine, err := New(config, 1)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if _, err := engine.Paint(source, &buffers); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
 
-func benchmarkImage(width int, height int) *image.RGBA {
+func benchmarkImage(width, height int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			img.SetRGBA(x, y, color.RGBA{
@@ -44,6 +51,22 @@ func benchmarkImage(width int, height int) *image.RGBA {
 			})
 		}
 	}
-
 	return img
+}
+
+func benchmarkName(workers int) string {
+	return fmt.Sprintf("workers_%d", workers)
+}
+
+func uniqueWorkerCounts(values []int) []int {
+	seen := make(map[int]bool)
+	result := make([]int, 0, len(values))
+	for _, value := range values {
+		if value <= 0 || seen[value] {
+			continue
+		}
+		seen[value] = true
+		result = append(result, value)
+	}
+	return result
 }

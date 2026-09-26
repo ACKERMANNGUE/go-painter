@@ -14,6 +14,17 @@ var presets = map[string]PainterConfig{
 		Randomness:       0.18,
 		UseCurvedStrokes: true,
 		CurveSmoothing:   0.35,
+		BlurStrength:     0.7,
+	},
+	"oil-sharp": {
+		BrushSizes:       []int{32, 16, 8, 4},
+		ErrorThreshold:   0.08,
+		StrokeLength:     2.2,
+		Opacity:          0.8,
+		Randomness:       0.16,
+		UseCurvedStrokes: true,
+		CurveSmoothing:   0.28,
+		BlurStrength:     0.5,
 	},
 	"impressionist": {
 		BrushSizes:       []int{40, 24, 12, 6},
@@ -23,6 +34,7 @@ var presets = map[string]PainterConfig{
 		Randomness:       0.28,
 		UseCurvedStrokes: true,
 		CurveSmoothing:   0.28,
+		BlurStrength:     0.8,
 	},
 	"rough": {
 		BrushSizes:       []int{48, 24, 12},
@@ -32,6 +44,7 @@ var presets = map[string]PainterConfig{
 		Randomness:       0.35,
 		UseCurvedStrokes: false,
 		CurveSmoothing:   0.3,
+		BlurStrength:     0.9,
 	},
 }
 
@@ -76,6 +89,9 @@ func (c PainterConfig) Validate() error {
 	}
 	if c.CurveSmoothing < 0 || c.CurveSmoothing > 1 {
 		return fmt.Errorf("curve smoothing must be in [0, 1]")
+	}
+	if c.BlurStrength <= 0 {
+		return fmt.Errorf("blur strength must be positive")
 	}
 	return nil
 }

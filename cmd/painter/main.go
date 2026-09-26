@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ACKERMANNGUE/go-painter/internal/imageutil"
+	"github.com/ACKERMANNGUE/go-painter/internal/model"
 	"github.com/ACKERMANNGUE/go-painter/internal/painter"
 )
 
@@ -47,8 +48,9 @@ func main() {
 		fatal(fmt.Errorf("create painter: %w", err))
 	}
 
+	var buffers model.PaintBuffer
 	started := time.Now()
-	result, err := engine.Paint(source)
+	result, err := engine.Paint(source, &buffers)
 	if err != nil {
 		fatal(fmt.Errorf("paint image: %w", err))
 	}

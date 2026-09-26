@@ -16,6 +16,7 @@ func GenerateStrokes(
 	brushSize int,
 	config PainterConfig,
 	rng *rand.Rand,
+	batch []model.BrushStroke,
 ) []model.BrushStroke {
 	bounds := source.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
@@ -28,7 +29,9 @@ func GenerateStrokes(
 		radius = 1
 	}
 
-	strokes := make([]model.BrushStroke, 0, (width/step+1)*(height/step+1)/2)
+	if batch == nil {
+		batch = make([]model.BrushStroke, 0, (width/step+1)*(height/step+1)/2)
+	}
 	for y := step / 2; y < height; y += step {
 		for x := step / 2; x < width; x += step {
 			if RegionError(source, canvas, x, y, radius) < config.ErrorThreshold {
@@ -59,10 +62,10 @@ func GenerateStrokes(
 				Color:    imageutil.SampleColor(source, sampleX, sampleY),
 				Opacity:  config.Opacity,
 			}
-			strokes = append(strokes, stroke)
+			batch = append(batch, stroke)
 		}
 	}
-	return strokes
+	return batch
 }
 
 func DrawStroke(
@@ -71,9 +74,14 @@ func DrawStroke(
 	length float64,
 	stepLength float64,
 	smoothing float64,
+	points []model.Vec2,
 ) []model.Vec2 {
 	if length <= 0 {
-		return []model.Vec2{start}
+		if points == nil {
+			return []model.Vec2{start}
+		}
+		points = points[:0]
+		return append(points, start)
 	}
 	if stepLength <= 0 {
 		stepLength = 1
@@ -81,7 +89,11 @@ func DrawStroke(
 	smoothing = clampFloat(smoothing, 0, 1)
 
 	steps := int(math.Max(1, math.Ceil(length/stepLength)))
-	points := make([]model.Vec2, 0, steps+1)
+	if points == nil {
+		points = make([]model.Vec2, 0, steps+1)
+	} else {
+		points = points[:0]
+	}
 	points = append(points, start)
 
 	current := start

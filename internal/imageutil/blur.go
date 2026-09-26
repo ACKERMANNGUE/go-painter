@@ -54,12 +54,6 @@ func ApplyHorizontalBlur(source image.Image, kernel []float64, workers int) imag
 		}
 	})
 
-	// for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-	// 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
-	// 		blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, true)))
-	// 	}
-	// }
-
 	return blurred
 }
 
@@ -73,12 +67,6 @@ func ApplyVerticalBlur(source image.Image, kernel []float64, workers int) image.
 			blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, false)))
 		}
 	})
-
-	// for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-	// 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
-	// 		blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, false)))
-	// 	}
-	// }
 
 	return blurred
 }
