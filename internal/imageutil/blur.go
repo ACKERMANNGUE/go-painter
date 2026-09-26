@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
+	"github.com/ACKERMANNGUE/go-painter/internal/parallel"
 )
 
 func GaussianKernel(radius int, sigma float64) []float64 {
@@ -34,37 +35,50 @@ func GaussianKernel(radius int, sigma float64) []float64 {
 	return kernel
 }
 
-func GaussianBlur(source image.Image, radius int, sigma float64) image.Image {
+func GaussianBlur(source image.Image, radius int, sigma float64, workers int) image.Image {
 	kernel := GaussianKernel(radius, sigma)
-	temporary := ApplyHorizontalBlur(source, kernel)
-	blurred := ApplyVerticalBlur(temporary, kernel)
+
+	temporary := ApplyHorizontalBlur(source, kernel, workers)
+	blurred := ApplyVerticalBlur(temporary, kernel, workers)
 	return blurred
 }
 
-func ApplyHorizontalBlur(source image.Image, kernel []float64) image.Image {
+func ApplyHorizontalBlur(source image.Image, kernel []float64, workers int) image.Image {
 	bounds := source.Bounds()
 	blurred := image.NewRGBA(bounds)
 	radius := len(kernel) / 2
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	parallel.ForEachRow(source.Bounds().Dy(), workers, func(y int) {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, true)))
 		}
-	}
+	})
+
+	// for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	// 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+	// 		blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, true)))
+	// 	}
+	// }
 
 	return blurred
 }
 
-func ApplyVerticalBlur(source image.Image, kernel []float64) image.Image {
+func ApplyVerticalBlur(source image.Image, kernel []float64, workers int) image.Image {
 	bounds := source.Bounds()
 	blurred := image.NewRGBA(bounds)
 	radius := len(kernel) / 2
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	parallel.ForEachRow(source.Bounds().Dy(), workers, func(y int) {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, false)))
 		}
-	}
+	})
+
+	// for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	// 	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+	// 		blurred.Set(x, y, ToNRGBA(applyKernelAt(source, x, y, kernel, radius, false)))
+	// 	}
+	// }
 
 	return blurred
 }

@@ -20,9 +20,9 @@ func ForEachRow(height int, workers int, fn func(int)) {
 		return
 	}
 
-	checkWorkersCount(workers, height)
+	workers = checkWorkersCount(workers, height)
 
-	jobs := make(chan int)
+	jobs := make(chan int, workers*2)
 
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -44,6 +44,7 @@ func ForEachRow(height int, workers int, fn func(int)) {
 }
 
 func ForEachRange(height int, workers int, fn func(model.RangeRow)) {
+	workers = checkWorkersCount(workers, height)
 	ranges := SplitRows(height, workers)
 	if len(ranges) == 0 {
 		return

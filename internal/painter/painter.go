@@ -37,7 +37,7 @@ func (p *Painter) Paint(source image.Image) (*image.RGBA, error) {
 	baseBrushSize := p.Config.BrushSizes[0]
 	radius := max(1, baseBrushSize/4)
 	sigma := math.Max(0.8, float64(radius)*0.75)
-	reference := imageutil.GaussianBlur(source, radius, sigma)
+	reference := imageutil.GaussianBlur(source, radius, sigma, p.Config.Workers)
 	gray := gradient.ToGrayscaleParallel(reference, p.Config.Workers)
 	field := gradient.Sobel(gray)
 
