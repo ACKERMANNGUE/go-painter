@@ -37,6 +37,8 @@ func main() {
 		os.Exit(2)
 	}
 	config.Workers = *workers
+	fmt.Fprintf(os.Stderr, "Parameters: input=%q output=%q style=%s seed=%d workers=%d config=%+v\n",
+		*inputPath, *outputPath, *styleName, *seed, *workers, config)
 
 	source, err := imageutil.LoadImage(*inputPath)
 	if err != nil {
