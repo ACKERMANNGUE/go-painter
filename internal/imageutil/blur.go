@@ -73,6 +73,7 @@ func ApplyVerticalBlur(source image.Image, kernel []float64, workers int) image.
 
 func applyKernelAt(source image.Image, x int, y int, kernel []float64, radius int, horizontal bool) model.ColorF {
 	accumulated := model.ColorF{}
+	alpha := 0.0
 	for offset := -radius; offset <= radius; offset++ {
 		sampleX := x
 		sampleY := y
@@ -84,11 +85,19 @@ func applyKernelAt(source image.Image, x int, y int, kernel []float64, radius in
 
 		weight := kernel[offset+radius]
 		sample := SampleColor(source, sampleX, sampleY)
-		accumulated.R += sample.R * weight
-		accumulated.G += sample.G * weight
-		accumulated.B += sample.B * weight
-		accumulated.A += sample.A * weight
+		weightedAlpha := sample.A * weight
+		accumulated.R += sample.R * weightedAlpha
+		accumulated.G += sample.G * weightedAlpha
+		accumulated.B += sample.B * weightedAlpha
+		alpha += weightedAlpha
 	}
 
+	if alpha == 0 {
+		return model.ColorF{}
+	}
+	accumulated.R /= alpha
+	accumulated.G /= alpha
+	accumulated.B /= alpha
+	accumulated.A = alpha
 	return accumulated
 }

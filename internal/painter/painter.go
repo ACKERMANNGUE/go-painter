@@ -34,7 +34,7 @@ func buildReferenceImage(source image.Image, p *Painter, buffers *model.PaintBuf
 		return image.Black
 	}
 
-	canvas := render.NewCanvasWithAlpha(source)
+	canvas := render.NewCanvasFromImage(source)
 	baseBrushSize := p.Config.BrushSizes[0]
 	blurScale := p.Config.BlurStrength
 	if blurScale <= 0 {

@@ -14,7 +14,7 @@ func TestBlendPixelPreservesAlphaMask(t *testing.T) {
 	for x, alpha := range alphas {
 		source.SetNRGBA(4+x, 7, color.NRGBA{R: 90, G: 80, B: 70, A: alpha})
 	}
-	canvas := NewCanvasWithAlpha(source)
+	canvas := NewCanvasFromImage(source)
 	initialColors := make([]color.RGBA, len(alphas))
 	for x := range alphas {
 		initialColors[x] = canvas.RGBAAt(x, 0)
