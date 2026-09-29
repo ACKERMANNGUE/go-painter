@@ -18,7 +18,7 @@ func NewCanvas(width int, height int, background model.ColorF) *image.RGBA {
 	return canvas
 }
 
-func NewCanvasWithAlpha(source image.Image) *image.RGBA {
+func NewCanvasFromImage(source image.Image) *image.RGBA {
 	bounds := source.Bounds()
 	canvas := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
 	for y := 0; y < bounds.Dy(); y++ {

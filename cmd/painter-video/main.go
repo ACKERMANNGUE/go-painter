@@ -14,7 +14,7 @@ import (
 func main() {
 	inputPath := flag.String("input", "", "Source video path")
 	outputPath := flag.String("output", "output/painting.mp4", "Destination video path")
-	presetName := flag.String("preset", "oil", "Painting preset")
+	presetName := flag.String("preset", "oil-sharp", "Painting preset")
 	seed := flag.Uint64("seed", 1, "Deterministic random seed")
 	workers := flag.Int("workers", 8, "Number of image-processing workers")
 	listPresets := flag.Bool("list-presets", false, "Print available presets and exit")

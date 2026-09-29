@@ -15,7 +15,7 @@ import (
 func main() {
 	inputPath := flag.String("input", "input/input.jpg", "Path to the input PNG or JPEG image")
 	outputPath := flag.String("output", "output/painting.png", "Path to the output PNG image")
-	styleName := flag.String("style", "oil", "Painting preset: oil, impressionist, or rough")
+	styleName := flag.String("style", "oil-sharp", "Painting preset: oil, impressionist, or rough")
 	seed := flag.Uint64("seed", 1, "Deterministic random seed used for stroke placement")
 	listStyles := flag.Bool("list-styles", false, "Print available style names and exit")
 	workers := flag.Int("workers", 8, "Number of workers to use")
