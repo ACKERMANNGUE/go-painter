@@ -4,12 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/ACKERMANNGUE/go-painter/internal/imageutil"
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
 	"github.com/ACKERMANNGUE/go-painter/internal/painter"
+	"github.com/ACKERMANNGUE/go-painter/internal/video"
+	"image"
 )
 
 func main() {
@@ -19,6 +22,7 @@ func main() {
 	seed := flag.Uint64("seed", 1, "Deterministic random seed used for stroke placement")
 	listStyles := flag.Bool("list-styles", false, "Print available style names and exit")
 	workers := flag.Int("workers", 8, "Number of workers to use")
+	showDrawingSteps := flag.Bool("show-drawing-steps", false, "Export an MP4 showing each brush stroke")
 	flag.Parse()
 
 	if *listStyles {
@@ -31,37 +35,82 @@ func main() {
 		os.Exit(2)
 	}
 
-	config, ok := painter.GetPreset(*styleName)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: unknown style %q; available styles: %s\n", *styleName, strings.Join(painter.PresetNames(), ", "))
-		os.Exit(2)
-	}
-	config.Workers = *workers
-	fmt.Fprintf(os.Stderr, "Parameters: input=%q output=%q style=%s seed=%d workers=%d config=%+v\n",
-		*inputPath, *outputPath, *styleName, *seed, *workers, config)
-
-	source, err := imageutil.LoadImage(*inputPath)
+	config, err := loadConfig(*styleName, *workers)
 	if err != nil {
 		fatal(err)
 	}
+	fmt.Fprintf(os.Stderr, "Parameters: input=%q output=%q style=%s seed=%d workers=%d config=%+v\n",
+		*inputPath, *outputPath, *styleName, *seed, *workers, config)
 
-	engine, err := painter.New(config, *seed)
-	if err != nil {
-		fatal(fmt.Errorf("create painter: %w", err))
-	}
-
-	var buffers model.PaintBuffer
 	started := time.Now()
-	result, err := engine.Paint(source, &buffers)
-	if err != nil {
-		fatal(fmt.Errorf("paint image: %w", err))
-	}
-	if err := imageutil.SavePNG(*outputPath, result); err != nil {
+	if err := paintImage(*inputPath, *outputPath, config, *seed, *showDrawingSteps); err != nil {
 		fatal(err)
 	}
 
 	fmt.Printf("Painted %s -> %s using style=%s seed=%d in %s\n",
 		*inputPath, *outputPath, *styleName, *seed, time.Since(started).Round(time.Millisecond))
+}
+
+func loadConfig(styleName string, workers int) (painter.PainterConfig, error) {
+	if workers < 1 {
+		return painter.PainterConfig{}, fmt.Errorf("workers must be at least 1")
+	}
+	config, ok := painter.GetPreset(styleName)
+	if !ok {
+		return painter.PainterConfig{}, fmt.Errorf("unknown style %q; available styles: %s", styleName, strings.Join(painter.PresetNames(), ", "))
+	}
+	config.Workers = workers
+	return config, nil
+}
+
+func paintImage(inputPath, outputPath string, config painter.PainterConfig, seed uint64, showDrawingSteps bool) error {
+	source, err := imageutil.LoadImage(inputPath)
+	if err != nil {
+		return err
+	}
+	engine, err := painter.New(config, seed)
+	if err != nil {
+		return fmt.Errorf("create painter: %w", err)
+	}
+	var buffers model.PaintBuffer
+	if showDrawingSteps {
+		return paintImageWithDrawingSteps(engine, source, outputPath, &buffers)
+	}
+	result, err := engine.Paint(source, &buffers)
+	if err != nil {
+		return fmt.Errorf("paint image: %w", err)
+	}
+	return imageutil.SavePNG(outputPath, result)
+}
+
+func paintImageWithDrawingSteps(engine *painter.Painter, source image.Image, outputPath string, buffers *model.PaintBuffer) error {
+	drawingStepsPath := drawingStepsOutputPath(outputPath)
+	recorder, err := video.NewDrawingStepsRecorder(drawingStepsPath, source.Bounds().Dx(), source.Bounds().Dy())
+	if err != nil {
+		return err
+	}
+	defer recorder.Abort()
+	fmt.Fprintf(os.Stderr, "Drawing steps output: %s (%d fps, one frame per stroke)\n", drawingStepsPath, video.DrawingStepsFrameRate)
+
+	result, err := engine.PaintWithStrokeObserver(source, buffers, func() error {
+		return recorder.WriteFrame(buffers.Canvas)
+	})
+	if err != nil {
+		return fmt.Errorf("paint image: %w", err)
+	}
+	if err := imageutil.SavePNG(outputPath, result); err != nil {
+		return err
+	}
+	if err := recorder.Close(); err != nil {
+		return err
+	}
+	fmt.Printf("Drawing steps video: %s\n", drawingStepsPath)
+	return nil
+}
+
+func drawingStepsOutputPath(outputPath string) string {
+	extension := filepath.Ext(outputPath)
+	return strings.TrimSuffix(outputPath, extension) + "_drawing_steps.mp4"
 }
 
 func fatal(err error) {

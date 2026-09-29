@@ -64,7 +64,7 @@ func generateStrokeBatch(source image.Image, buffers *model.PaintBuffer, brushSi
 	buffers.StrokeBatch = GenerateStrokes(buffers.Reference, buffers.Canvas, buffers.Field, brushSize, config, rng, buffers.StrokeBatch)
 }
 
-func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig) {
+func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig, onStroke func() error) error {
 	for _, stroke := range buffers.StrokeBatch {
 		if config.UseCurvedStrokes {
 			buffers.CurvePoints = DrawStroke(
@@ -85,7 +85,13 @@ func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig) {
 		} else {
 			render.DrawStroke(buffers.Canvas, stroke)
 		}
+		if onStroke != nil {
+			if err := onStroke(); err != nil {
+				return fmt.Errorf("capture drawing step: %w", err)
+			}
+		}
 	}
+	return nil
 }
 
 func clearStrokeBatch(buffers *model.PaintBuffer) {
@@ -94,13 +100,24 @@ func clearStrokeBatch(buffers *model.PaintBuffer) {
 }
 
 func (p *Painter) Paint(source image.Image, buffers *model.PaintBuffer) (*image.RGBA, error) {
+	return p.PaintWithStrokeObserver(source, buffers, nil)
+}
+
+func (p *Painter) PaintWithStrokeObserver(source image.Image, buffers *model.PaintBuffer, onStroke func() error) (*image.RGBA, error) {
 	reference := buildReferenceImage(source, p, buffers)
 	buildGradientField(reference, p, buffers)
+	if onStroke != nil {
+		if err := onStroke(); err != nil {
+			return nil, fmt.Errorf("capture initial drawing step: %w", err)
+		}
+	}
 
 	for _, brushSize := range p.Config.BrushSizes {
 		generateStrokeBatch(source, buffers, brushSize, p.Config, p.rng)
 		shuffleStrokes(buffers.StrokeBatch, p.rng)
-		renderStrokeBatch(buffers, p.Config)
+		if err := renderStrokeBatch(buffers, p.Config, onStroke); err != nil {
+			return nil, err
+		}
 		clearStrokeBatch(buffers)
 	}
 
