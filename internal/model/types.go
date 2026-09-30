@@ -68,5 +68,5 @@ type PaintBuffer struct {
 type ErrorMap struct {
 	Width  int
 	Height int
-	Values []float64
+	Values []float32
 }

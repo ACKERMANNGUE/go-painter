@@ -46,14 +46,14 @@ func BuildErrorMap(source image.Image, canvas image.Image) model.ErrorMap {
 	errorMap := model.ErrorMap{
 		Width:  width,
 		Height: height,
-		Values: make([]float64, width*height),
+		Values: make([]float32, width*height),
 	}
 
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			sourceColor := imageutil.SampleColor(source, x, y)
 			canvasColor := imageutil.SampleColor(canvas, x, y)
-			errorMap.Values[y*width+x] = ColorDistance(sourceColor, canvasColor)
+			errorMap.Values[y*width+x] = float32(ColorDistance(sourceColor, canvasColor))
 		}
 	}
 
@@ -70,7 +70,7 @@ func RegionErrorCached(errorMap model.ErrorMap, centerX int, centerY int, radius
 				continue
 			}
 
-			totalError += errorMap.Values[y*errorMap.Width+x]
+			totalError += float64(errorMap.Values[y*errorMap.Width+x])
 			pixelCount++
 		}
 	}
