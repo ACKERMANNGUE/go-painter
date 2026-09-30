@@ -7,6 +7,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ACKERMANNGUE/go-painter/internal/imageutil"
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
 )
 
@@ -40,6 +41,35 @@ func TestBlendPixelPreservesAlphaMask(t *testing.T) {
 		}
 		if wantAlpha == 0 && got != initialColors[x] {
 			t.Errorf("transparent pixel changed from %#v to %#v", initialColors[x], got)
+		}
+	}
+}
+
+func TestBlendPixelOpaqueMatchesGenericBlend(t *testing.T) {
+	canvas := image.NewRGBA(image.Rect(0, 0, 4, 1))
+	initial := []color.RGBA{
+		{R: 12, G: 80, B: 190, A: 255},
+		{R: 255, G: 0, B: 125, A: 255},
+		{R: 60, G: 140, B: 230, A: 255},
+		{R: 1, G: 254, B: 77, A: 255},
+	}
+	for x, pixel := range initial {
+		canvas.SetRGBA(x, 0, pixel)
+	}
+
+	paint := model.ColorF{R: 0.23, G: 0.71, B: 0.42, A: 0.83}
+	const opacity = 0.67
+	for x, pixel := range initial {
+		destination := model.ColorF{
+			R: float64(pixel.R) / MAX_RGB,
+			G: float64(pixel.G) / MAX_RGB,
+			B: float64(pixel.B) / MAX_RGB,
+			A: 1,
+		}
+		want := imageutil.ToNRGBA(Blend(destination, paint, opacity))
+		BlendPixel(canvas, x, 0, paint, opacity)
+		if got := canvas.RGBAAt(x, 0); got != (color.RGBA{R: want.R, G: want.G, B: want.B, A: 255}) {
+			t.Errorf("pixel %d = %#v, want %#v", x, got, want)
 		}
 	}
 }

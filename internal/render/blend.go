@@ -33,6 +33,20 @@ func blendPixelAtOffset(canvas *image.RGBA, offset int, c model.ColorF, opacity 
 	if destinationAlpha == 0 {
 		return
 	}
+	if destinationAlpha == 255 {
+		destination := model.ColorF{
+			R: float64(canvas.Pix[offset]) / MAX_RGB,
+			G: float64(canvas.Pix[offset+1]) / MAX_RGB,
+			B: float64(canvas.Pix[offset+2]) / MAX_RGB,
+			A: 1,
+		}
+		pixel := imageutil.ToNRGBA(Blend(destination, c, opacity))
+		canvas.Pix[offset] = pixel.R
+		canvas.Pix[offset+1] = pixel.G
+		canvas.Pix[offset+2] = pixel.B
+		return
+	}
+
 	alpha := float64(destinationAlpha) / MAX_RGB
 	destination := model.ColorF{
 		R: float64(canvas.Pix[offset]) / MAX_RGB / alpha,
