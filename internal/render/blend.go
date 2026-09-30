@@ -25,7 +25,10 @@ func BlendPixel(canvas *image.RGBA, x int, y int, c model.ColorF, opacity float6
 	if x < bounds.Min.X || x >= bounds.Max.X || y < bounds.Min.Y || y >= bounds.Max.Y {
 		return
 	}
-	offset := canvas.PixOffset(x, y)
+	blendPixelAtOffset(canvas, canvas.PixOffset(x, y), c, opacity)
+}
+
+func blendPixelAtOffset(canvas *image.RGBA, offset int, c model.ColorF, opacity float64) {
 	destinationAlpha := canvas.Pix[offset+3]
 	if destinationAlpha == 0 {
 		return

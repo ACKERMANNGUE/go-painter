@@ -16,16 +16,27 @@ func DrawDisc(canvas *image.RGBA, center model.Vec2, radius float64, color model
 	minY := int(math.Floor(center.Y - radius))
 	maxY := int(math.Ceil(center.Y + radius))
 
-	radiusSquared := math.Pow(radius, 2)
+	bounds := canvas.Bounds()
+	minX = max(minX, bounds.Min.X)
+	maxX = min(maxX, bounds.Max.X-1)
+	minY = max(minY, bounds.Min.Y)
+	maxY = min(maxY, bounds.Max.Y-1)
+	if minX > maxX || minY > maxY {
+		return
+	}
+
+	radiusSquared := radius * radius
 
 	for y := minY; y <= maxY; y++ {
+		offset := canvas.PixOffset(minX, y)
 		for x := minX; x <= maxX; x++ {
 			dx := float64(x) - center.X
 			dy := float64(y) - center.Y
-			distanceSquared := math.Pow(dx, 2) + math.Pow(dy, 2)
+			distanceSquared := dx*dx + dy*dy
 			if distanceSquared <= radiusSquared {
-				BlendPixel(canvas, x, y, color, opacity)
+				blendPixelAtOffset(canvas, offset, color, opacity)
 			}
+			offset += 4
 		}
 	}
 }
