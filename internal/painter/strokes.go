@@ -9,6 +9,17 @@ import (
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
 )
 
+type strokeGenerationRequest struct {
+	source     image.Image
+	canvas     image.Image
+	field      model.GradientField
+	brushSize  int
+	config     PainterConfig
+	rng        *rand.Rand
+	batch      []model.BrushStroke
+	onProgress func(int, int)
+}
+
 func GenerateStrokes(
 	source image.Image,
 	canvas image.Image,
@@ -18,6 +29,21 @@ func GenerateStrokes(
 	rng *rand.Rand,
 	batch []model.BrushStroke,
 ) []model.BrushStroke {
+	return generateStrokes(strokeGenerationRequest{
+		source: source, canvas: canvas, field: field, brushSize: brushSize,
+		config: config, rng: rng, batch: batch,
+	})
+}
+
+func generateStrokes(request strokeGenerationRequest) []model.BrushStroke {
+	source := request.source
+	canvas := request.canvas
+	field := request.field
+	brushSize := request.brushSize
+	config := request.config
+	rng := request.rng
+	batch := request.batch
+	onProgress := request.onProgress
 	bounds := source.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
 	step := brushSize
@@ -33,6 +59,10 @@ func GenerateStrokes(
 		batch = make([]model.BrushStroke, 0, (width/step+1)*(height/step+1)/2)
 	}
 	errorMap := BuildErrorMap(source, canvas)
+	candidateColumns := gridPositionCount(width, step)
+	candidateRows := gridPositionCount(height, step)
+	totalCandidates := candidateColumns * candidateRows
+	completedCandidates := 0
 	for y := step / 2; y < height; y += step {
 		for x := step / 2; x < width; x += step {
 			if RegionErrorCached(errorMap, x, y, radius) < config.ErrorThreshold {
@@ -65,8 +95,20 @@ func GenerateStrokes(
 			}
 			batch = append(batch, stroke)
 		}
+		completedCandidates += candidateColumns
+		if onProgress != nil {
+			onProgress(completedCandidates, totalCandidates)
+		}
 	}
 	return batch
+}
+
+func gridPositionCount(length, step int) int {
+	start := step / 2
+	if start >= length {
+		return 0
+	}
+	return (length-1-start)/step + 1
 }
 
 func DrawStroke(

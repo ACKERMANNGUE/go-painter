@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/ACKERMANNGUE/go-painter/internal/imageutil"
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
 	"github.com/ACKERMANNGUE/go-painter/internal/painter"
+	"github.com/ACKERMANNGUE/go-painter/internal/progress"
 )
 
 func paintFrames(frames []string, outputDir string, config painter.PainterConfig, seed uint64) error {
@@ -45,11 +45,5 @@ func paintFrames(frames []string, outputDir string, config painter.PainterConfig
 }
 
 func writeFrameProgress(output io.Writer, completed, total int, elapsed time.Duration) {
-	const barWidth = 24
-	percentage := completed * 100 / total
-	filled := percentage * barWidth / 100
-	bar := strings.Repeat("#", filled) + strings.Repeat("-", barWidth-filled)
-	eta := time.Duration(float64(elapsed) * float64(total-completed) / float64(completed))
-	fmt.Fprintf(output, "\rPainting frames [%s] %3d%% (%d/%d) elapsed=%s ETA~%s",
-		bar, percentage, completed, total, elapsed.Round(time.Second), eta.Round(time.Second))
+	progress.Write(output, "Painting frames", completed, total, elapsed)
 }

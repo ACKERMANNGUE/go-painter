@@ -10,6 +10,19 @@ type BrushStroke = model.BrushStroke
 type CurvedStroke = model.CurvedStroke
 type Gradient = model.Gradient
 
+const (
+	PaintPhaseGenerate = "generate"
+	PaintPhaseRender   = "render"
+)
+
+type PaintProgress struct {
+	Phase     string
+	Pass      int
+	Passes    int
+	Completed int
+	Total     int
+}
+
 type PainterConfig struct {
 	BrushSizes       []int
 	ErrorThreshold   float64

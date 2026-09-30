@@ -60,12 +60,16 @@ func buildGradientField(reference image.Image, p *Painter, buffers *model.PaintB
 	// return field
 }
 
-func generateStrokeBatch(source image.Image, buffers *model.PaintBuffer, brushSize int, config PainterConfig, rng *rand.Rand) {
-	buffers.StrokeBatch = GenerateStrokes(buffers.Reference, buffers.Canvas, buffers.Field, brushSize, config, rng, buffers.StrokeBatch)
+func generateStrokeBatch(buffers *model.PaintBuffer, brushSize int, config PainterConfig, rng *rand.Rand, onProgress func(int, int)) {
+	buffers.StrokeBatch = generateStrokes(strokeGenerationRequest{
+		source: buffers.Reference, canvas: buffers.Canvas, field: buffers.Field,
+		brushSize: brushSize, config: config, rng: rng, batch: buffers.StrokeBatch,
+		onProgress: onProgress,
+	})
 }
 
-func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig, onStroke func() error) error {
-	for _, stroke := range buffers.StrokeBatch {
+func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig, onStroke func() error, onProgress func(int, int)) error {
+	for index, stroke := range buffers.StrokeBatch {
 		if config.UseCurvedStrokes {
 			buffers.CurvePoints = DrawStroke(
 				stroke.Position,
@@ -90,6 +94,9 @@ func renderStrokeBatch(buffers *model.PaintBuffer, config PainterConfig, onStrok
 				return fmt.Errorf("capture drawing step: %w", err)
 			}
 		}
+		if onProgress != nil {
+			onProgress(index+1, len(buffers.StrokeBatch))
+		}
 	}
 	return nil
 }
@@ -104,6 +111,10 @@ func (p *Painter) Paint(source image.Image, buffers *model.PaintBuffer) (*image.
 }
 
 func (p *Painter) PaintWithStrokeObserver(source image.Image, buffers *model.PaintBuffer, onStroke func() error) (*image.RGBA, error) {
+	return p.PaintWithProgress(source, buffers, onStroke, nil)
+}
+
+func (p *Painter) PaintWithProgress(source image.Image, buffers *model.PaintBuffer, onStroke func() error, onProgress func(PaintProgress)) (*image.RGBA, error) {
 	reference := buildReferenceImage(source, p, buffers)
 	buildGradientField(reference, p, buffers)
 	if onStroke != nil {
@@ -112,10 +123,22 @@ func (p *Painter) PaintWithStrokeObserver(source image.Image, buffers *model.Pai
 		}
 	}
 
-	for _, brushSize := range p.Config.BrushSizes {
-		generateStrokeBatch(source, buffers, brushSize, p.Config, p.rng)
+	for index, brushSize := range p.Config.BrushSizes {
+		pass := index + 1
+		passes := len(p.Config.BrushSizes)
+		var generationProgress func(int, int)
+		var renderingProgress func(int, int)
+		if onProgress != nil {
+			generationProgress = func(completed, total int) {
+				onProgress(PaintProgress{Phase: PaintPhaseGenerate, Pass: pass, Passes: passes, Completed: completed, Total: total})
+			}
+			renderingProgress = func(completed, total int) {
+				onProgress(PaintProgress{Phase: PaintPhaseRender, Pass: pass, Passes: passes, Completed: completed, Total: total})
+			}
+		}
+		generateStrokeBatch(buffers, brushSize, p.Config, p.rng, generationProgress)
 		shuffleStrokes(buffers.StrokeBatch, p.rng)
-		if err := renderStrokeBatch(buffers, p.Config, onStroke); err != nil {
+		if err := renderStrokeBatch(buffers, p.Config, onStroke, renderingProgress); err != nil {
 			return nil, err
 		}
 		clearStrokeBatch(buffers)

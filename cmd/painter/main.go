@@ -13,6 +13,7 @@ import (
 	"github.com/ACKERMANNGUE/go-painter/internal/imageutil"
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
 	"github.com/ACKERMANNGUE/go-painter/internal/painter"
+	"github.com/ACKERMANNGUE/go-painter/internal/progress"
 	"github.com/ACKERMANNGUE/go-painter/internal/video"
 )
 
@@ -103,9 +104,11 @@ func paintImageWithDrawingSteps(engine *painter.Painter, source image.Image, out
 	defer recorder.Abort()
 	fmt.Fprintf(os.Stderr, "Drawing steps output: %s (%d fps, one frame per stroke)\n", drawingStepsPath, video.DrawingStepsFrameRate)
 
-	result, err := engine.PaintWithStrokeObserver(source, buffers, func() error {
+	drawingProgress := drawingStepsProgress{}
+	defer drawingProgress.finish()
+	result, err := engine.PaintWithProgress(source, buffers, func() error {
 		return recorder.WriteFrame(buffers.Canvas)
-	})
+	}, drawingProgress.update)
 	if err != nil {
 		return fmt.Errorf("paint image: %w", err)
 	}
@@ -122,6 +125,49 @@ func paintImageWithDrawingSteps(engine *painter.Painter, source image.Image, out
 func drawingStepsOutputPath(outputPath string) string {
 	extension := filepath.Ext(outputPath)
 	return strings.TrimSuffix(outputPath, extension) + "_drawing_steps.mp4"
+}
+
+type drawingStepsProgress struct {
+	phase       string
+	pass        int
+	started     time.Time
+	lastPercent int
+	active      bool
+}
+
+func (p *drawingStepsProgress) update(update painter.PaintProgress) {
+	if update.Total <= 0 {
+		return
+	}
+	if !p.active || p.phase != update.Phase || p.pass != update.Pass {
+		p.phase = update.Phase
+		p.pass = update.Pass
+		p.started = time.Now()
+		p.lastPercent = -1
+		p.active = true
+	}
+	percentage := update.Completed * 100 / update.Total
+	if percentage == p.lastPercent && update.Completed < update.Total {
+		return
+	}
+	p.lastPercent = percentage
+	phaseName := "Generating strokes"
+	if update.Phase == painter.PaintPhaseRender {
+		phaseName = "Rendering strokes"
+	}
+	label := fmt.Sprintf("Drawing pass %d/%d: %s", update.Pass, update.Passes, phaseName)
+	progress.Write(os.Stderr, label, update.Completed, update.Total, time.Since(p.started))
+	if update.Completed >= update.Total {
+		fmt.Fprintln(os.Stderr)
+		p.active = false
+	}
+}
+
+func (p *drawingStepsProgress) finish() {
+	if p.active {
+		fmt.Fprintln(os.Stderr)
+		p.active = false
+	}
 }
 
 func fatal(err error) {

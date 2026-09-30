@@ -93,6 +93,65 @@ func TestPaintWithStrokeObserverCapturesInitialAndRenderedCanvases(t *testing.T)
 	}
 }
 
+func TestPaintWithProgressReportsGenerationAndRendering(t *testing.T) {
+	config := PainterConfig{
+		BrushSizes:     []int{4, 8},
+		ErrorThreshold: 0,
+		StrokeLength:   1,
+		Opacity:        0.8,
+		BlurStrength:   0.5,
+		Workers:        1,
+	}
+	engine, err := New(config, 42)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	source := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	var reports []PaintProgress
+	if _, err := engine.PaintWithProgress(source, &model.PaintBuffer{}, nil, func(progress PaintProgress) {
+		reports = append(reports, progress)
+	}); err != nil {
+		t.Fatalf("PaintWithProgress() error = %v", err)
+	}
+
+	expectedCounts := map[struct {
+		phase string
+		pass  int
+	}]int{
+		{phase: PaintPhaseGenerate, pass: 1}: 4,
+		{phase: PaintPhaseRender, pass: 1}:   16,
+		{phase: PaintPhaseGenerate, pass: 2}: 2,
+		{phase: PaintPhaseRender, pass: 2}:   4,
+	}
+	seen := make(map[struct {
+		phase string
+		pass  int
+	}]int)
+	lastCompleted := make(map[struct {
+		phase string
+		pass  int
+	}]int)
+	for _, report := range reports {
+		key := struct {
+			phase string
+			pass  int
+		}{phase: report.Phase, pass: report.Pass}
+		if report.Passes != 2 {
+			t.Errorf("progress pass count = %d, want 2", report.Passes)
+		}
+		seen[key]++
+		lastCompleted[key] = report.Completed
+	}
+	for key, expectedCount := range expectedCounts {
+		if seen[key] != expectedCount {
+			t.Errorf("progress events for phase=%q pass=%d = %d, want %d", key.phase, key.pass, seen[key], expectedCount)
+		}
+		if lastCompleted[key] != map[int]int{1: 16, 2: 4}[key.pass] {
+			t.Errorf("last progress for phase=%q pass=%d = %d, want total", key.phase, key.pass, lastCompleted[key])
+		}
+	}
+}
+
 func alphaTestImage() *image.NRGBA {
 	source := image.NewNRGBA(image.Rect(3, 5, 19, 21))
 	for y := 0; y < source.Bounds().Dy(); y++ {
