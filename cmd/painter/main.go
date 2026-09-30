@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -12,7 +14,6 @@ import (
 	"github.com/ACKERMANNGUE/go-painter/internal/model"
 	"github.com/ACKERMANNGUE/go-painter/internal/painter"
 	"github.com/ACKERMANNGUE/go-painter/internal/video"
-	"image"
 )
 
 func main() {
@@ -21,8 +22,9 @@ func main() {
 	styleName := flag.String("style", "oil-sharp", "Painting preset: oil, impressionist, or rough")
 	seed := flag.Uint64("seed", 1, "Deterministic random seed used for stroke placement")
 	listStyles := flag.Bool("list-styles", false, "Print available style names and exit")
-	workers := flag.Int("workers", 8, "Number of workers to use")
+	workers := flag.Int("workers", runtime.GOMAXPROCS(0), "Number of workers to use")
 	showDrawingSteps := flag.Bool("show-drawing-steps", false, "Export an MP4 showing each brush stroke")
+	debug := flag.Bool("debug", false, "Export grayscale, blur, Sobel, and error heatmap images")
 	flag.Parse()
 
 	if *listStyles {
@@ -39,11 +41,11 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	fmt.Fprintf(os.Stderr, "Parameters: input=%q output=%q style=%s seed=%d workers=%d config=%+v\n",
-		*inputPath, *outputPath, *styleName, *seed, *workers, config)
+	fmt.Fprintf(os.Stderr, "Parameters: input=%q output=%q style=%s seed=%d workers=%d show-drawing-steps=%t debug=%t config=%+v\n",
+		*inputPath, *outputPath, *styleName, *seed, *workers, *showDrawingSteps, *debug, config)
 
 	started := time.Now()
-	if err := paintImage(*inputPath, *outputPath, config, *seed, *showDrawingSteps); err != nil {
+	if err := paintImage(*inputPath, *outputPath, config, *seed, *showDrawingSteps, *debug); err != nil {
 		fatal(err)
 	}
 
@@ -63,7 +65,7 @@ func loadConfig(styleName string, workers int) (painter.PainterConfig, error) {
 	return config, nil
 }
 
-func paintImage(inputPath, outputPath string, config painter.PainterConfig, seed uint64, showDrawingSteps bool) error {
+func paintImage(inputPath, outputPath string, config painter.PainterConfig, seed uint64, showDrawingSteps, debug bool) error {
 	source, err := imageutil.LoadImage(inputPath)
 	if err != nil {
 		return err
@@ -74,13 +76,22 @@ func paintImage(inputPath, outputPath string, config painter.PainterConfig, seed
 	}
 	var buffers model.PaintBuffer
 	if showDrawingSteps {
-		return paintImageWithDrawingSteps(engine, source, outputPath, &buffers)
+		if err := paintImageWithDrawingSteps(engine, source, outputPath, &buffers); err != nil {
+			return err
+		}
+	} else {
+		result, err := engine.Paint(source, &buffers)
+		if err != nil {
+			return fmt.Errorf("paint image: %w", err)
+		}
+		if err := imageutil.SavePNG(outputPath, result); err != nil {
+			return err
+		}
 	}
-	result, err := engine.Paint(source, &buffers)
-	if err != nil {
-		return fmt.Errorf("paint image: %w", err)
+	if debug {
+		return painter.SaveDebugImages(outputPath, source, &buffers)
 	}
-	return imageutil.SavePNG(outputPath, result)
+	return nil
 }
 
 func paintImageWithDrawingSteps(engine *painter.Painter, source image.Image, outputPath string, buffers *model.PaintBuffer) error {
