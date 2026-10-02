@@ -10,29 +10,15 @@ import (
 )
 
 type strokeGenerationRequest struct {
-	source     image.Image
-	canvas     image.Image
-	field      model.GradientField
-	brushSize  int
-	config     PainterConfig
-	rng        *rand.Rand
-	batch      []model.BrushStroke
-	onProgress func(int, int)
-}
-
-func GenerateStrokes(
-	source image.Image,
-	canvas image.Image,
-	field model.GradientField,
-	brushSize int,
-	config PainterConfig,
-	rng *rand.Rand,
-	batch []model.BrushStroke,
-) []model.BrushStroke {
-	return generateStrokes(strokeGenerationRequest{
-		source: source, canvas: canvas, field: field, brushSize: brushSize,
-		config: config, rng: rng, batch: batch,
-	})
+	source      image.Image
+	canvas      image.Image
+	field       model.GradientField
+	brushSize   int
+	isFinalPass bool
+	config      PainterConfig
+	rng         *rand.Rand
+	batch       []model.BrushStroke
+	onProgress  func(int, int)
 }
 
 func generateStrokes(request strokeGenerationRequest) []model.BrushStroke {
@@ -46,10 +32,7 @@ func generateStrokes(request strokeGenerationRequest) []model.BrushStroke {
 	onProgress := request.onProgress
 	bounds := source.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
-	step := brushSize
-	if step < 1 {
-		step = 1
-	}
+	step := calculateGridStep(brushSize, request.isFinalPass)
 	radius := brushSize / 2
 	if radius < 1 {
 		radius = 1
@@ -109,6 +92,25 @@ func gridPositionCount(length, step int) int {
 		return 0
 	}
 	return (length-1-start)/step + 1
+}
+
+// calculateGridStep returns the spacing between candidate stroke positions for
+// a brush pass. Stroke width only reaches about 0.72 of the brush size (see
+// generateStrokes), so a candidate grid spaced a full brush size apart puts
+// each cell's corner farther from the nearest stroke center than the stroke's
+// own half-width, a deterministic geometric gap. Coarser passes can rely on a
+// later, smaller brush size to close such gaps, but the final pass has no
+// later pass to clean up after it, so it halves its spacing to keep every
+// corner within reach of a stroke.
+func calculateGridStep(brushSize int, isFinalPass bool) int {
+	step := brushSize
+	if isFinalPass {
+		step = brushSize / 2
+	}
+	if step < 1 {
+		step = 1
+	}
+	return step
 }
 
 func DrawStroke(

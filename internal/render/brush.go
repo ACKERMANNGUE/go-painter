@@ -10,6 +10,13 @@ func DrawDisc(canvas *image.RGBA, center model.Vec2, radius float64, color model
 	if radius <= 0 {
 		return
 	}
+	drawDisc(canvas, center, radius, color, opacity)
+}
+
+func drawDisc(canvas *image.RGBA, center model.Vec2, radius float64, color model.ColorF, opacity float64) {
+	if radius <= 0 {
+		return
+	}
 
 	minX := int(math.Floor(center.X - radius))
 	maxX := int(math.Ceil(center.X + radius))

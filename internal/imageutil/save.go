@@ -12,7 +12,7 @@ func SavePNG(path string, img image.Image) error {
 	dir := filepath.Dir(path)
 	if dir != "." {
 		mkdirError := os.MkdirAll(dir, 0o755)
-		if  mkdirError != nil {
+		if mkdirError != nil {
 			return fmt.Errorf("create output directory: %w", mkdirError)
 		}
 	}
@@ -23,7 +23,7 @@ func SavePNG(path string, img image.Image) error {
 	}
 	defer file.Close()
 
-	encodeError := png.Encode(file, img);
+	encodeError := png.Encode(file, img)
 	if encodeError != nil {
 		return fmt.Errorf("encode PNG %q: %w", path, encodeError)
 	}

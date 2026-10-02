@@ -32,19 +32,19 @@ help:
 		'  check-video-deps   Check for ffmpeg and ffprobe' \
 		'  clean              Remove binaries built by this Makefile'
 
-build: $(BIN_DIR)/painter $(BIN_DIR)/painter-folder $(BIN_DIR)/painter-video
+build: $(BIN_DIR)/painter $(BIN_DIR)/painter-video $(BIN_DIR)/painter-folder
 
 $(BIN_DIR)/painter: $(GO_FILES) go.mod
 	@mkdir -p "$(BIN_DIR)"
 	$(GO) build -o "$@" ./cmd/painter
 
-$(BIN_DIR)/painter-folder: $(GO_FILES) go.mod
-	@mkdir -p "$(BIN_DIR)"
-	$(GO) build -o "$@" ./cmd/painter-folder
-
 $(BIN_DIR)/painter-video: $(GO_FILES) go.mod
 	@mkdir -p "$(BIN_DIR)"
 	$(GO) build -o "$@" ./cmd/painter-video
+
+$(BIN_DIR)/painter-folder: $(GO_FILES) go.mod
+	@mkdir -p "$(BIN_DIR)"
+	$(GO) build -o "$@" ./cmd/painter-folder
 
 install:
 	$(GO) install ./cmd/...

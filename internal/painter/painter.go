@@ -27,11 +27,10 @@ func New(config PainterConfig, seed uint64) (*Painter, error) {
 	}, nil
 }
 
-func buildReferenceImage(source image.Image, p *Painter, buffers *model.PaintBuffer) image.Image {
+func buildReferenceImage(source image.Image, p *Painter, buffers *model.PaintBuffer) (image.Image, error) {
 	bounds := source.Bounds()
 	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
-		fmt.Errorf("source image is empty")
-		return image.Black
+		return nil, fmt.Errorf("source image is empty")
 	}
 
 	canvas := render.NewCanvasFromImage(source)
@@ -47,23 +46,21 @@ func buildReferenceImage(source image.Image, p *Painter, buffers *model.PaintBuf
 	buffers.Reference = reference
 	buffers.Canvas = canvas
 
-	return reference
+	return reference, nil
 }
 
-func buildGradientField(reference image.Image, p *Painter, buffers *model.PaintBuffer) /*model.GradientField*/ {
+func buildGradientField(reference image.Image, p *Painter, buffers *model.PaintBuffer) {
 	gray := gradient.ToGrayscaleParallel(reference, p.Config.Workers)
 	field := gradient.SobelParallel(gray, p.Config.Workers)
 
 	buffers.Gray = gray
 	buffers.Field = field
-
-	// return field
 }
 
-func generateStrokeBatch(buffers *model.PaintBuffer, brushSize int, config PainterConfig, rng *rand.Rand, onProgress func(int, int)) {
+func generateStrokeBatch(buffers *model.PaintBuffer, brushSize int, isFinalPass bool, config PainterConfig, rng *rand.Rand, onProgress func(int, int)) {
 	buffers.StrokeBatch = generateStrokes(strokeGenerationRequest{
 		source: buffers.Reference, canvas: buffers.Canvas, field: buffers.Field,
-		brushSize: brushSize, config: config, rng: rng, batch: buffers.StrokeBatch,
+		brushSize: brushSize, isFinalPass: isFinalPass, config: config, rng: rng, batch: buffers.StrokeBatch,
 		onProgress: onProgress,
 	})
 }
@@ -115,7 +112,10 @@ func (p *Painter) PaintWithStrokeObserver(source image.Image, buffers *model.Pai
 }
 
 func (p *Painter) PaintWithProgress(source image.Image, buffers *model.PaintBuffer, onStroke func() error, onProgress func(PaintProgress)) (*image.RGBA, error) {
-	reference := buildReferenceImage(source, p, buffers)
+	reference, err := buildReferenceImage(source, p, buffers)
+	if err != nil {
+		return nil, err
+	}
 	buildGradientField(reference, p, buffers)
 	if onStroke != nil {
 		if err := onStroke(); err != nil {
@@ -123,9 +123,10 @@ func (p *Painter) PaintWithProgress(source image.Image, buffers *model.PaintBuff
 		}
 	}
 
+	passes := len(p.Config.BrushSizes)
 	for index, brushSize := range p.Config.BrushSizes {
 		pass := index + 1
-		passes := len(p.Config.BrushSizes)
+		isFinalPass := index == passes-1
 		var generationProgress func(int, int)
 		var renderingProgress func(int, int)
 		if onProgress != nil {
@@ -136,12 +137,22 @@ func (p *Painter) PaintWithProgress(source image.Image, buffers *model.PaintBuff
 				onProgress(PaintProgress{Phase: PaintPhaseRender, Pass: pass, Passes: passes, Completed: completed, Total: total})
 			}
 		}
-		generateStrokeBatch(buffers, brushSize, p.Config, p.rng, generationProgress)
+		generateStrokeBatch(buffers, brushSize, isFinalPass, p.Config, p.rng, generationProgress)
 		shuffleStrokes(buffers.StrokeBatch, p.rng)
 		if err := renderStrokeBatch(buffers, p.Config, onStroke, renderingProgress); err != nil {
 			return nil, err
 		}
 		clearStrokeBatch(buffers)
+	}
+
+	// Brush placement can still miss isolated pixels through geometric gaps,
+	// jitter, or a region's averaged error hiding one bad pixel among good
+	// neighbors, so sweep once for anything still at the untouched canvas
+	// background and fix it directly from the source.
+	if corrected := render.CompleteUnpaintedPixels(buffers.Canvas, source); corrected > 0 && onStroke != nil {
+		if err := onStroke(); err != nil {
+			return nil, fmt.Errorf("capture completion drawing step: %w", err)
+		}
 	}
 
 	return buffers.Canvas, nil
